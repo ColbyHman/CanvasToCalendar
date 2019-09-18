@@ -6,7 +6,6 @@
 # and Google will require you to authenticate the use of their Calendar API
 
 # Imports
-from __future__ import print_function
 import requests
 import datetime
 import pickle
@@ -14,8 +13,10 @@ import os.path
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+import time
 
 #Variables
+start = round(time.time())
 api_file = open("api.txt", "rt")
 apiKey = api_file.read()
 apiKey = apiKey.strip("\n")
@@ -38,10 +39,12 @@ creds = None
 
 if os.path.exists('token.pickle'):
     with open('token.pickle', "rb") as token:
+        print("Authenticating Google Calendar...\n")
         creds = pickle.load(token)
 
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
+        print("Redirecting to Google Calendar for Authentication...\n")
         creds.refresh(Request())
     else:
         flow = InstalledAppFlow.from_client_secrets_file('credentials.json', scopes)
@@ -64,6 +67,7 @@ assignment = {}
 deleted_assignments = []
 
 # Make call to Canvas
+print("Starting Canvas Communication...\n")
 r = requests.get(url=courses_URL, headers=headers, params=params)
 
 # Encode response to JSON for parsing
@@ -76,6 +80,7 @@ class_response = r.json()
 # Backend Communication
 
 # Parse through Canvas Response for all active classes
+print("Parsing Canvas Data...\n")
 for item in class_response:
     # Print all courses - Test Code
     # print("Course Name : " + str(item.get("name")) + "\nCourse ID : " + str(item.get("id")) + "\n")
@@ -114,17 +119,18 @@ for classID in class_ids:
                 assignment = {}
 
 # Call Google Calendar for Events
+print("Starting Google Calendar Communication...\n")
 now = datetime.datetime.utcnow().isoformat() + 'Z'
 for id in class_dict:
     currentClass = class_dict.get(id)
     scrap, currentClass = currentClass.split("       ")
-    print('Fetching your upcoming assignments for', currentClass, "...")
+    print('Fetching your upcoming assignments for', currentClass, "...","\n")
     events_result = service.events().list(calendarId="primary", timeMin=now, singleEvents=True,
                                           orderBy='startTime', q=currentClass).execute()
     events += events_result.get('items', [])
 
 if not events:
-    print("No upcoming assignments")
+    print("\nNo upcoming assignments\n\n")
 # Print out assignments found in Google Calendar - Test Code
 #for event in events:
     # start = event['start'].get("dateTime", event['start'].get('date'))
@@ -150,7 +156,7 @@ for item in deleted_assignments:
             break
 # Create Events to put in Google Calendar
 if len(assignments) > 0:
-    print("Adding assignments to calendar...")
+    print("Adding assignments to calendar...\n")
     for work in assignments:
         newEvent = {}
         newEvent.update({"summary" : work.get("Name")})
@@ -165,6 +171,9 @@ if len(assignments) > 0:
             # Print Calendar Link - Test Code
             print("Assignment Added : %s" % (updateCalendar.get('htmlLink')))
 else:
-    print("No Assignments to add")
-input("Press Enter To Exit...")
+    print("NOTICE : No Assignments to Add. Everything Up to Date")
+
+end = round(time.time())
+totalRunTime = end - start
+print("\nTime Taken :", totalRunTime, "seconds")
 exit(0)
