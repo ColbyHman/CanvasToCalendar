@@ -103,20 +103,21 @@ if 5197 in class_dict:
 for classID in class_ids:
 
     count = 0
-    course_URL_suffix = "/" + str(classID) + "/assignments"
+    course_URL_suffix = "/" + str(classID) + "/assignments?per_page=100"
     r_classes = requests.get(url = str(courses_URL+course_URL_suffix), headers = headers)
     response = r_classes.json()
-
+    print(len(response))
     for item in response:
-        due_at = item.get("due_at")
-        if str(due_at) != "None":
-            due_at_obj = datetime.datetime.strptime(due_at, "%Y-%m-%dT%H:%M:%SZ")
-            if due_at_obj > datetime.datetime.utcnow():
-                assignment.update({"Class" : str(class_dict.get(classID))})
-                assignment.update({ "Name" : str(item.get("name"))})
-                assignment.update({"Due": due_at_obj})
-                assignments.append(assignment)
-                assignment = {}
+        if(type(item) == dict):
+            due_at = item['due_at']
+            if str(due_at) != "None":
+                due_at_obj = datetime.datetime.strptime(due_at, "%Y-%m-%dT%H:%M:%SZ") - datetime.timedelta(hours=5)
+                if due_at_obj > datetime.datetime.utcnow():
+                    assignment.update({"Class" : str(class_dict.get(classID))})
+                    assignment.update({ "Name" : str(item.get("name"))})
+                    assignment.update({"Due": due_at_obj})
+                    assignments.append(assignment)
+                    assignment = {}
 
 # Call Google Calendar for Events
 print("Starting Google Calendar Communication...\n")
@@ -132,12 +133,13 @@ for id in class_dict:
 if not events:
     print("\nNo upcoming assignments\n\n")
 # Print out assignments found in Google Calendar - Test Code
-#for event in events:
+# for event in events:
     # start = event['start'].get("dateTime", event['start'].get('date'))
     # print(event['description'], event['summary'])
 
 # Filter out assignments
 for work in assignments:
+
     count = 0
     for assignmentEvent in events:
         if work.get("Name") in events[count]["summary"]:
@@ -160,6 +162,8 @@ if len(assignments) > 0:
     for work in assignments:
         newEvent = {}
         newEvent.update({"summary" : work.get("Name")})
+        newEvent.update({"colorRgbFormat" : "true"})
+        newEvent.update({"colorId" : "8"})
         newEvent.update({"description" : work.get("Class") + "\n\nDue at : " + str(work.get("Due").time())})
         newEvent.update({"start" : {"date" : str(work.get("Due").date()), "timeZone" : "America/New_York"}})
         newEvent.update({"end"   : {"date" : str(work.get("Due").date()), "timeZone" : "America/New_York"}})
