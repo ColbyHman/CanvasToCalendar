@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Select Courses - Canvas to Calendar</title>
+</head>
+<body>
+        <form action="/filtered_courses" method="get">
+        {% if course_list %}
+            <table>{{ course_list }}</table>
+            <input type="submit" value="Track Courses">
+        {% else %}
+            <h1>ERROR : COURSES COULD NOT BE DISPLAYED</h1>
+        {% endif %}
+        </form>
+</body>
+</html>
