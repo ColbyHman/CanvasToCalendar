@@ -3,10 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <title>Success! - Canvas to Calendar</title>
+    <style>
+    .header{
+		font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+		position:fixed;
+		color:white;
+		background-color: rgb(75, 97, 196);
+		width:100%;
+		text-align: center;
+	}
+    .success{
+        font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+		position: relative;
+		color:rgb(78, 110, 255);
+		text-align: center;
+		top:150px;
+		font-size:x-large;
+    }
+	.footer {
+        font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: rgb(75, 97, 196);
+        color: white;
+        text-align: center;
+    }
+    .footer a{
+        color:azure;
+    }
+    .footer a:hover{
+        color:darkgray;
+    }
+	</style>
 </head>
 <body>
+    <div class=header>
+		<h1>Canvas to Google Calendar</h1>
+	</div>
 
-    <h1>Your Calendar has been updated!</h1>
+    <h2 class="success">Your Calendar has been updated!</h2>
 
+
+    <div class="footer">
+        <p>Created by Colby Hillman</p>
+        <p>Source Code Available on <a href="https://github.com/ColbyHman/CanvasToCalendar">GitHub</a></p>
+    </div>
 </body>
 </html>

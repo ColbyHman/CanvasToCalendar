@@ -3,8 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <title>Select Courses - Canvas to Calendar</title>
+    <style>
+    .header{
+		font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+		position:fixed;
+		color:white;
+		background-color: rgb(75, 97, 196);
+		width:100%;
+		text-align: center;
+	}
+	table{
+        font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+        border-collapse: collapse;
+        position:relative;
+        text-align: center;
+        width:auto;
+        margin:auto;
+        margin-top: 100px;
+    }
+    th,td{
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+    tr:nth-child(even){
+        background-color: #f2f2f2;
+    }
+    tr:hover {
+        background-color: #ddd;
+    }
+    th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: rgb(78, 110, 255);
+        color: white;
+    }
+    input[type="submit"]{
+        font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+        background-color: rgb(78, 110, 255);
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display:block;
+        font-size: 16px;
+        margin: auto;
+        margin-top: 30px;
+    }
+    .footer {
+        font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: rgb(75, 97, 196);
+        color: white;
+        text-align: center;
+    }
+    .footer a{
+        color:azure;
+    }
+    .footer a:hover{
+        color:darkgray;
+    }
+	</style>
 </head>
 <body>
+        <div class=header>
+            <h1>Canvas to Google Calendar</h1>
+        </div>
         <form action="/filtered_courses" method="get">
         {% if course_list %}
             <table>{{ course_list }}</table>
@@ -13,5 +81,10 @@
             <h1>ERROR : COURSES COULD NOT BE DISPLAYED</h1>
         {% endif %}
         </form>
+
+        <div class="footer">
+            <p>Created by Colby Hillman</p>
+            <p>Source Code Available on <a href="https://github.com/ColbyHman/CanvasToCalendar">GitHub</a></p>
+        </div>
 </body>
 </html>

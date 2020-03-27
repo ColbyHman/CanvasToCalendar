@@ -2,11 +2,68 @@
 <html>
 <head>
 	<title>Home - Canvas To Calendar</title>
+	<style>
+	.header{
+		font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+		position:fixed;
+		color:white;
+		background-color: rgb(75, 97, 196);
+		width:100%;
+		text-align: center;
+	}
+	.info{
+		font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+		position: relative;
+		color:rgb(78, 110, 255);
+		text-align: center;
+		top:150px;
+		font-size: larger;
+	}
+	button{
+		font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+        background-color: rgb(78, 110, 255);
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display:block;
+        font-size: 16px;
+		position: relative;
+		margin:auto;
+		top: 200px;
+    }
+	.footer {
+		font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: rgb(75, 97, 196);
+        color: white;
+        text-align: center;
+    }
+    .footer a{
+        color:azure;
+    }
+    .footer a:hover{
+        color:darkgray;
+    }
+	</style>
 </head>
 <body>
-
-	<h1>This is a test of Flask</h1>
-
+	<div class=header>
+		<h1>Canvas to Google Calendar</h1>
+	</div>
+	<div class="info">
+		<h2>Welcome</h2>
+		<h3>Click the button below to select your courses to track</h3>
+	</div>
 	<button onclick="window.location.href = '/select_courses';">Click Here to Select Courses!</button>
+	
+	<div class="footer">
+        <p>Created by Colby Hillman</p>
+        <p>Source Code Available on <a href="https://github.com/ColbyHman/CanvasToCalendar">GitHub</a></p>
+    </div>
 </body>
 </html>
