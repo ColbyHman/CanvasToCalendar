@@ -5,24 +5,24 @@
 # Note : Requires Auth files from Canvas (txt) and Google (json). Canvas will allow you to generate the API Bearer Token
 # and Google will require you to authenticate the use of their Calendar API
 
-# Imports
-import requests
 import datetime
-import pickle
 import os.path
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
+import pickle
+
+import requests
+from flask import Flask, render_template, request
 from google.auth.transport.requests import Request
-from flask import Flask
-from flask import render_template
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 from markupsafe import Markup
-from flask import request
+from course_object import Course
 
 app = Flask("Canvas To Calendar")
 # Variables
 api_file = open("api.txt", "rt")
 api_key = api_file.read()
 api_key = api_key.strip("\n")
+courses = []
 
 
 # Setup Connections to Google Calendar and Canvas
@@ -43,7 +43,7 @@ def setup_google_calendar():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', scopes)
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_local_server(port=8000)
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
 
@@ -53,8 +53,6 @@ def setup_google_calendar():
 
 
 def setup_canvas():
-    class_ids = class_names = []
-    class_dict = {}
 
     # Set URL data for GET call
     courses_url = "https://moravian.instructure.com/api/v1/courses"
@@ -73,113 +71,105 @@ def setup_canvas():
     # Parse through Canvas Response for all active classes
     print("Parsing Canvas Data...\n")
     for item in class_response:
-        # Print all courses - Test Code
-        class_dict.update({item.get("id"): str(item.get("name"))})
-        class_ids.append(item.get("id"))
-        class_names.append(item.get("name"))
-
-    return class_dict, class_ids, class_names
-
+        new_course = Course(str(item.get("name")),item.get("id"))
+        courses.append(new_course)
 
 # Pull all upcoming assignments from Canvas JSON Response
-def pull_course_assignments(class_dict, class_ids, class_names):
-    assignments = []
+def pull_course_assignments(classes):
     assignment = {}
     headers = {"Authorization": "Bearer " + str(api_key)}
 
     # Parse through each class for assignments
-    for course in class_dict:
+    for course in classes:
+        assignments = course.get_assignments()
         courses_url = "https://moravian.instructure.com/api/v1/courses"
-        course_url_suffix = "/" + str(course) + "/assignments?per_page=100"
+        course_url_suffix = "/" + str(course.get_id()) + "/assignments?per_page=100"
         r_classes = requests.get(url=str(courses_url + course_url_suffix), headers=headers)
         response = r_classes.json()
         for item in response:
             if type(item) == dict:
                 due_at = item['due_at']
                 if str(due_at) != "None":
-                    due_at_obj = datetime.datetime.strptime(due_at, "%Y-%m-%dT%H:%M:%SZ") - datetime.timedelta(hours=5)
+                    due_at_obj = datetime.datetime.strptime(due_at, "%Y-%m-%dT%H:%M:%SZ") - datetime.timedelta(hours=4)
                     if due_at_obj > datetime.datetime.utcnow():
-                        assignment.update({"Class": str(class_dict.get(course))})
                         assignment.update({"Name": str(item.get("name"))})
                         assignment.update({"Due": due_at_obj})
-                        assignments.append(assignment)
+                        if assignment not in assignments:
+                            course.add_assignment(assignment)
                         assignment = {}
-    return class_dict, assignments
+        print(course.get_name(),":",course.get_assignments(),"\n\n\n")
 
 
 # Check Google Calendar to add events
 # Skips over this if there are no new updates or assignments in Canvas
 # Cleans out the assignments if need be
-def fetch_events(class_dict, assignments, events, service):
+def fetch_events(classes, events, service):
     deleted_assignments = []
 
     # Call Google Calendar for Events
     print("Starting Google Calendar Communication...\n")
     now = datetime.datetime.utcnow().isoformat() + 'Z'
-    for id in class_dict:
-        current_class = class_dict.get(id)
-        scrap, current_class = current_class.split("       ")
+    for course in classes:
+        current_class = course.get_name()
         print('Fetching your upcoming assignments for', current_class, "...", "\n")
         events_result = service.events().list(calendarId="primary", timeMin=now, singleEvents=True,
                                               orderBy='startTime', q=current_class).execute()
         events += events_result.get('items', [])
-    if not events:
-        print("\nNo upcoming assignments\n\n")
 
-    # Filter out assignments
-    for work in assignments:
-
-        count = 0
-        for _ in events:
-            if work.get("Name") in events[count]["summary"]:
-                deleted_assignments.append(work.get("Name"))
-            count += 1
-    for item in deleted_assignments:
-        for work in assignments:
-            if work.get("Name") == item:
-                assignments.remove(work)
-                break
-    return assignments, events
+        # Filter out assignments
+        for assignment in course.get_assignments():
+            count = 0
+            for _ in events:
+                if assignment.get("Name") in events[count]["summary"]:
+                    deleted_assignments.append(assignment.get("Name"))
+                count += 1
+        for item in deleted_assignments:
+            for work in course.get_assignments():
+                if work.get("Name") == item:
+                    course.remove_assignment(work)
+                    break
+    return events
 
 
-def create_events(assignments, events, service):
+def create_events(courses, events, service):
     # Create Events to put in Google Calendar
-    if len(assignments) > 0:
-        print("Adding assignments to calendar...\n")
-        for work in assignments:
-            new_event = {}
-            new_event.update({"summary": work.get("Name")})
-            new_event.update({"colorRgbFormat": "true"})
-            new_event.update({"colorId": "8"})
-            new_event.update({"description": work.get("Class") + "\n\nDue at : " + str(work.get("Due").time())})
-            new_event.update({"start": {"date": str(work.get("Due").date()), "timeZone": "America/New_York"}})
-            new_event.update({"end": {"date": str(work.get("Due").date()), "timeZone": "America/New_York"}})
-            new_event.update({"reminders": {"useDefault": False,
-                                            "overrides": [{"method": "popup", "minutes": 24 * 60},
-                                                          {"method": "popup", "minutes": 24 * 120}]}})
-            if new_event not in events:
-                update_calendar = service.events().insert(calendarId="primary", body=new_event).execute()
-                # Print Calendar Link - Test Code
-                print("Assignment Added : %s" % (update_calendar.get('htmlLink')))
-    else:
-        print("NOTICE : No Assignments to Add. Everything Up to Date")
+    for course in courses:
+        assignments = course.get_assignments()
+        if len(assignments) > 0:
+            for assignment in assignments:
+                print("Adding assignments to calendar...\n")
+                new_event = {}
+                new_event.update({"summary": assignment.get("Name")})
+                new_event.update({"colorRgbFormat": "true"})
+                new_event.update({"colorId": "8"})
+                new_event.update({"description": course.get_name() + "\n\nDue at : " + str(assignment.get("Due").time())})
+                new_event.update({"start": {"date": str(assignment.get("Due").date()), "timeZone": "America/New_York"}})
+                new_event.update({"end": {"date": str(assignment.get("Due").date()), "timeZone": "America/New_York"}})
+                new_event.update({"reminders": {"useDefault": False,
+                                                "overrides": [{"method": "popup", "minutes": 24 * 60},
+                                                            {"method": "popup", "minutes": 24 * 120}]}})
+                if new_event not in events:
+                    update_calendar = service.events().insert(calendarId="primary", body=new_event).execute()
+                    # Print Calendar Link - Test Code
+                    print(course.get_name(),": Assignment Added : %s" % (update_calendar.get('htmlLink')))
+        else:
+            print(course.get_name(),": NOTICE : No Assignments to Add. Everything Up to Date")
 
     return 'Completed'
 
 
 @app.route('/select_courses', methods=['POST', 'GET'])
 def filter_courses():
-    class_dict, class_ids, class_names = setup_canvas()
-
+    if len(courses) == 0:
+        setup_canvas()
+    print(courses)
     table_output = "<tr><th>Course Name</th><th>Course ID</th><th>Select Course</th></tr>"
 
-    class_dict, assignments = pull_course_assignments(class_dict, class_ids, class_names)
-
     count = 0
-    for id in class_dict:
-        checkbox_name = "<input type=\"checkbox\" name=\"class{}\" value=\"{}\" />".format(count, id)
+    for course in courses:
+        checkbox_name = "<input type=\"checkbox\" name=\"class{}\" value=\"{}\" />".format(count, course.get_id())
         table_output = table_output + "<tr>&nbsp;<td>{}</td>&nbsp;<td>{}</td>&nbsp;<td>{}</td>&nbsp;</tr>".format(
-            class_dict[id], id, checkbox_name)
+            course.get_name(), course.get_id(), checkbox_name)
         count += 1
 
     table_output = Markup(table_output)
@@ -194,9 +184,10 @@ def home():
 
 @app.route('/run_default')
 def default():
-    class_dict, class_ids, class_names = setup_canvas()
+    if len(courses) == 0:
+        setup_canvas()
 
-    class_dict, assignments = pull_course_assignments(class_dict, class_ids, class_names)
+    class_dict, assignments = pull_course_assignments(courses)
 
     return render_template('success.html')
 
@@ -215,24 +206,19 @@ def filtered_classes():
             print('error')
             pass
 
-
     events = []
-    class_dict, class_ids, class_names = setup_canvas()
     service = setup_google_calendar()
-    filtered_class_dict = {}
+    filtered_classes = []
 
     print(filtered_course_ids)
 
-    for id in class_dict:
-        print(id)
-        if id in filtered_course_ids:
-            print("GOT HERE")
-            filtered_class_dict.update({id : class_dict.get(id)})
+    for course in courses:
+        if course.get_id() in filtered_course_ids:
+            filtered_classes.append(course)
 
-    print(class_dict.keys())
-    print(filtered_class_dict)
+    print(filtered_classes)
 
-    class_dict, assignments = pull_course_assignments(filtered_class_dict, filtered_course_ids, class_names)
-    assignments, events = fetch_events(class_dict, assignments, events, service)
-    create_events(assignments, events, service)
+    pull_course_assignments(filtered_classes)
+    events = fetch_events(filtered_classes, events, service)
+    create_events(filtered_classes, events, service)
     return render_template('success.html')
