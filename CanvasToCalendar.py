@@ -1,5 +1,5 @@
 # Author : Colby Hillman
-# Last Edit : 9/15/19
+# Last Edit : 03/29/20
 # Title : Canvas to Google Calendar Importer
 # Purpose : Pull assignments from Canvas and import them into Google Calendar
 # Note : Requires Auth files from Canvas (txt) and Google (json). Canvas will allow you to generate the API Bearer Token
