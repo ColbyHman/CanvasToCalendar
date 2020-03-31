@@ -16,7 +16,6 @@ class Course():
 
     def add_assignment(self,new_assignment):
         self.assignments.append(new_assignment)
-        print(new_assignment.get("Name"),"added to",self.name)
 
     def remove_assignment(self, assignment):
         if assignment in self.assignments:

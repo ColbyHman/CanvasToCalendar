@@ -9,7 +9,7 @@ sys.path.insert(1, 'google-auth-httplib2/google/auth/')
 sys.path.insert(1, 'google-api-python-client')
 sys.path.insert(1, 'google-auth-oauthlib')
 sys.path.insert(1, 'requests')
-
+import time
 import datetime
 import os.path
 import pickle
@@ -19,12 +19,17 @@ from transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from course_object import Course
+import boto3
+from botocore.exceptions import ClientError
 
 # Variables
 api_file = open("api.txt", "rt")
 api_key = api_file.read()
 api_key = api_key.strip("\n")
 courses = []
+s3 = boto3.resource('s3')
+with open('/tmp/token.pickle', 'wb') as data:
+    s3.Bucket("canvastocalendarbucket").download_fileobj("token.pickle", data)
 
 
 # Setup Connections to Google Calendar and Canvas
@@ -33,18 +38,16 @@ def setup_google_calendar():
     # Set up connection to Google Calendar
     scopes = ['https://www.googleapis.com/auth/calendar']
     creds = None
-
-    with open('tmp/token.pickle', "rb") as token:
+    with open('/tmp/token.pickle', 'rb') as token:
         creds = pickle.load(token)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            print("Redirecting to Google Calendar for Authentication...\n")
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', scopes)
             creds = flow.run_local_server(port=8000)
-        with open('tmp/token.pickle', 'wb') as token:
+        with open('/tmp/token.pickle', 'rb') as token:
             pickle.dump(creds, token)
 
     service = build('calendar', 'v3', credentials=creds)
@@ -76,25 +79,21 @@ def setup_canvas():
 def pull_course_assignments(classes):
     assignment = {}
     headers = {"Authorization": "Bearer " + str(api_key)}
+    params = {"bucket" : "future"}
+    courses_url = "https://moravian.instructure.com/api/v1/courses"
 
     # Parse through each class for assignments
     for course in classes:
-        assignments = course.get_assignments()
-        courses_url = "https://moravian.instructure.com/api/v1/courses"
-        course_url_suffix = "/" + str(course.get_id()) + "/assignments?per_page=100"
-        r_classes = requests.get(url=str(courses_url + course_url_suffix), headers=headers)
+        course_url_suffix = courses_url + "/" + str(course.get_id()) + "/assignments?per_page=100"
+        r_classes = requests.get(url=str(course_url_suffix), headers=headers, params=params)
         response = r_classes.json()
         for item in response:
-            if type(item) == dict:
-                due_at = item['due_at']
-                if str(due_at) != "None":
-                    due_at_obj = datetime.datetime.strptime(due_at, "%Y-%m-%dT%H:%M:%SZ") - datetime.timedelta(hours=4)
-                    if due_at_obj > datetime.datetime.utcnow():
-                        assignment.update({"Name": str(item.get("name"))})
-                        assignment.update({"Due": due_at_obj})
-                        if assignment not in assignments:
-                            course.add_assignment(assignment)
-                        assignment = {}
+            due_at = item['due_at']
+            if str(due_at) != "None" and not item["has_submitted_submissions"]:
+                due_at_obj = datetime.datetime.strptime(due_at, "%Y-%m-%dT%H:%M:%SZ") - datetime.timedelta(hours=4)
+                assignment.update({"Name": str(item.get("name")),"Due": due_at_obj})
+                course.add_assignment(assignment)
+                assignment = {}
 
 
 # Check Google Calendar to add events
@@ -132,7 +131,6 @@ def create_events(courses, events, service):
         assignments = course.get_assignments()
         if len(assignments) > 0:
             for assignment in assignments:
-                print("Adding assignments to calendar...\n")
                 new_event = {}
                 new_event.update({"summary": assignment.get("Name")})
                 new_event.update({"colorRgbFormat": "true"})
@@ -158,23 +156,40 @@ def main():
             filtered_course_ids.append(int(item))
         except:
             pass
-
     events = []
     service = setup_google_calendar()
     filtered_classes = []
-
     for course in courses:
         if course.get_id() in filtered_course_ids:
             filtered_classes.append(course)
-
+    
     pull_course_assignments(filtered_classes)
+    
     events = fetch_events(filtered_classes, events, service)
     create_events(filtered_classes, events, service)
     return "Classes Updated Successfully"
 
 def lambda_handler(event,context):
     output = main()
-    return {
-        'statusCode' : 200,
-        'body' : json.dumps(output)
-    }
+    try:
+        with open('/tmp/token.pickle', 'rb') as token:
+            s3client = boto3.client('s3')
+            response = s3client.upload_fileobj(token, 'canvastocalendarbucket', 'token.pickle')
+    except ClientError as e:
+        print("Could not upload to bucket")
+        print(e)
+        print(response)
+    
+    body = """Colby,<br>
+
+    <h3>Your Google Calendar has been updated based on assignments taken from Canvas.</h3>
+    <br>
+    <p>Have a nice day,<br>
+
+    Canvas to Google Calendar</p>"""
+
+    client = boto3.client("ses", region_name="us-east-1")
+    response = client.send_email(Source = "colby.hillman@gmail.com", 
+    Destination = {"ToAddresses":["hillmanc@moravian.edu"]}, Message = {"Subject" : {"Data" : "Canvas to Calendar"}, "Body" : {"Html" : {"Data" : body} }} )
+
+    return "Success!"
