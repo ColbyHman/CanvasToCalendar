@@ -1,5 +1,7 @@
 Canvas to Google Calendar
 
+DISCLAIMER: This project is no longer maintained as I am no longer a student, but please feel free to open an Issue if you decide to fork this repo!
+
 Requirements: Canvas API Key, Google Calendar OAuth
 
 Optional: AWS Account
